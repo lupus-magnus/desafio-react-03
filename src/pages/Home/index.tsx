@@ -27,7 +27,8 @@ const Home = (): JSX.Element => {
 
   const cartItemsAmount = cart.reduce((sumAmount, product) => {
     const { id } = product;
-    const productAmount = cart.filter((product) => product.id === id).length;
+    const productAmount =
+      cart.find((product) => product.id === id)?.amount ?? 0;
     return { ...sumAmount, [id]: productAmount };
   }, {} as CartItemsAmount);
 
