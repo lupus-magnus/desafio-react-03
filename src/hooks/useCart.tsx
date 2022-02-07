@@ -42,8 +42,11 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   useEffect(() => {
     const getStockProducts = async () => {
-      const { data } = await api.get("/stock");
-      setStock(data);
+      try {
+        const { data } = await api.get("stock");
+        setStock(data);
+        console.log("stock:", data);
+      } catch {}
     };
     getStockProducts();
   }, []);
@@ -52,7 +55,7 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     localStorage.setItem("@RocketShoes:cart", JSON.stringify(newCart));
   };
 
-  useEffect(() => handleUpdateLocalStorageCart(cart), [cart]);
+  // useEffect(() => handleUpdateLocalStorageCart(cart), [cart]);
 
   const addProduct = async (productId: number) => {
     const productInStock = stock.find((product) => product.id === productId);
@@ -60,26 +63,22 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
     try {
       if (productInCart) {
-        console.log("product in cart:", productInCart);
-
         if (!productInStock || productInStock.amount <= productInCart.amount) {
           toast.error("Quantidade solicitada fora de estoque");
           return;
         }
-
-        productInCart.amount += 1;
-
-        setCart(
-          cart.map((product) =>
-            product.id === productId ? productInCart : product
-          )
+        const newCart = cart.map((product) =>
+          product.id === productId
+            ? { ...product, amount: product.amount + 1 }
+            : product
         );
+        setCart(newCart);
+        handleUpdateLocalStorageCart(newCart);
       } else {
-        console.log("adding product that was not in the cart");
         const { data: newProduct } = await api.get(`/products/${productId}`);
-        console.log("product fetched:", newProduct);
         const newCart = [...cart, { ...newProduct, amount: 1 }];
         setCart(newCart);
+        handleUpdateLocalStorageCart(newCart);
       }
     } catch {
       toast.error("Erro na adição do produto");
@@ -88,7 +87,12 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const removeProduct = (productId: number) => {
     try {
-      setCart(cart.filter((product) => product.id !== productId));
+      if (!cart.find((product) => productId === product.id)) {
+        throw new Error("Elemento não está no carrinho ");
+      }
+      const newCart = cart.filter((product) => product.id !== productId);
+      setCart(newCart);
+      handleUpdateLocalStorageCart(newCart);
     } catch {
       toast.error("Erro na remoção do produto");
     }
@@ -98,24 +102,29 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     productId,
     amount,
   }: UpdateProductAmount) => {
-    const productInStock = stock.find((product) => product.id === productId);
-    if (!productInStock || amount <= 0) return;
-
-    if (productInStock.amount < amount) {
-      toast.error("Quantidade solicitada fora de estoque");
-      return;
-    }
-
     try {
-      const itemToUpdate = cart.find(
-        (elem) => elem.id === productId
-      ) as Product;
-      itemToUpdate.amount = amount;
-      setCart(
-        cart.map((elem) => (elem.id === productId ? itemToUpdate : elem))
+      if (amount <= 0) return;
+      const productInStock = stock.find((product) => product.id === productId);
+      const updatedCart = [...cart];
+      const productInCart = updatedCart.find(
+        (product) => product.id === productId
       );
+
+      if (!productInStock || productInStock.amount < amount) {
+        toast.error("Quantidade solicitada fora de estoque");
+        return;
+      }
+      if (productInCart) {
+        productInCart.amount = amount;
+
+        setCart(updatedCart);
+        handleUpdateLocalStorageCart(updatedCart);
+      } else {
+        toast.error("Erro na alteração de quantidade do produto");
+        return;
+      }
     } catch {
-      toast.error("Erro na adição do produto");
+      toast.error("Erro na alteração de quantidade do produto");
     }
   };
 
